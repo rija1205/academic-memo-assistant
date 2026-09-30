@@ -1,0 +1,24 @@
+{
+  "name": "academic-memo-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Academic Memo Assistant - monorepo",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "test:web": "npm --workspace apps/web run test",
+    "lint:web": "npm --workspace apps/web run lint",
+    "typecheck:web": "npm --workspace apps/web run typecheck"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.28"
+    }
+  }
+}

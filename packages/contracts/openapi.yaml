@@ -1,0 +1,603 @@
+openapi: 3.1.0
+info:
+  title: Academic Memo Assistant API
+  version: 0.1.0
+  description: Contrat de l'authentification, des mémoires et de la bibliothèque de sources. La source de vérité est l'application FastAPI.
+paths:
+  /health/live:
+    get:
+      summary: Liveness check
+      responses:
+        '200':
+          description: Process is running
+  /health/ready:
+    get:
+      summary: Readiness check
+      responses:
+        '200':
+          description: PostgreSQL and Redis are available
+        '503':
+          description: At least one dependency is unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  dependencies:
+                    type: object
+  /api/auth/csrf:
+    get:
+      summary: Issue a CSRF token
+      responses:
+        '200':
+          description: CSRF cookie and token
+  /api/auth/register:
+    post:
+      summary: Register with email and password
+      security:
+        - csrfToken: []
+      responses:
+        '201':
+          description: Account and session created
+        '403':
+          description: CSRF validation failed
+        '409':
+          description: Email already exists
+  /api/auth/login:
+    post:
+      summary: Login with email and password
+      security:
+        - csrfToken: []
+      responses:
+        '200':
+          description: Session created
+        '401':
+          description: Invalid credentials
+  /api/auth/google/start:
+    post:
+      summary: Start Google OAuth with state, nonce and PKCE
+      security:
+        - csrfToken: []
+      responses:
+        '200':
+          description: Google authorization URL
+        '503':
+          description: Google OAuth is not configured
+  /api/auth/logout:
+    post:
+      summary: Revoke the current session
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Session revoked
+  /api/auth/me:
+    get:
+      summary: Return the current user
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current user
+        '401':
+          description: Session missing or expired
+  /api/auth/sessions:
+    get:
+      summary: List active sessions
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active sessions
+  /api/auth/sessions/{session_id}:
+    delete:
+      summary: Revoke one owned session
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Session revoked
+        '404':
+          description: Session not found
+  /api/projects:
+    get:
+      summary: List projects accessible to the current user
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Accessible projects
+        '401':
+          description: Authentication required
+    post:
+      summary: Create a project with the default academic outline
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Project created
+  /api/projects/{project_id}:
+    get:
+      summary: Get a project and its progress
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Project detail
+        '404':
+          description: Project not found
+    patch:
+      summary: Update project metadata or status
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Project updated
+    delete:
+      summary: Soft-delete a project
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Project deleted
+  /api/projects/{project_id}/archive:
+    post:
+      summary: Archive a project
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Project archived
+  /api/projects/{project_id}/duplicate:
+    post:
+      summary: Duplicate a project and its outline
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Project duplicated
+  /api/projects/{project_id}/outline:
+    get:
+      summary: Get the ordered outline
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Outline nodes
+    post:
+      summary: Add a section or subsection
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Outline node created
+  /api/projects/{project_id}/outline/reorder:
+    post:
+      summary: Reorder outline nodes
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Reordered outline
+  /api/projects/{project_id}/outline/{node_id}:
+    patch:
+      summary: Rename or move an outline node
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Outline node updated
+    delete:
+      summary: Delete an outline node and descendants
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Outline node deleted
+  /api/projects/{project_id}/outline/{node_id}/duplicate:
+    post:
+      summary: Duplicate an outline node and its content
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Outline node duplicated
+  /api/projects/{project_id}/sections/{section_id}:
+    get:
+      summary: Get a section document
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Section content and metadata
+  /api/projects/{project_id}/sections/{section_id}/content:
+    put:
+      summary: Autosave a Tiptap document
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Section saved with a new revision
+        '409':
+          description: Version conflict
+  /api/projects/{project_id}/sections/{section_id}/revisions:
+    get:
+      summary: List immutable section revisions
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Revision history
+  /api/projects/{project_id}/sections/{section_id}/revisions/{revision_id}/restore:
+    post:
+      summary: Restore a revision as a new version
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Restored section
+  /api/projects/{project_id}/sources/upload:
+    post:
+      summary: Upload and validate an academic source
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data: {}
+      responses:
+        '201':
+          description: Source stored and queued or processed
+        '409':
+          description: Duplicate SHA-256 requires confirmation
+  /api/projects/{project_id}/sources:
+    get:
+      summary: List, filter and sort project sources
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Source library page
+  /api/projects/{project_id}/sources/search:
+    get:
+      summary: Search extracted source text locally
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Search results with page and provenance
+  /api/projects/{project_id}/sources/folders:
+    get:
+      summary: List source folders
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Source folders
+    post:
+      summary: Create a source folder
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Folder created
+  /api/projects/{project_id}/sources/{source_id}:
+    get:
+      summary: Get source metadata
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Source metadata
+    patch:
+      summary: Update academic metadata, folder or tags
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Source updated
+    delete:
+      summary: Delete the stored file and soft-delete the source
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Source deleted
+  /api/projects/{project_id}/sources/{source_id}/download:
+    get:
+      summary: Download the original source file
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Original binary file
+  /api/projects/{project_id}/sources/{source_id}/preview:
+    get:
+      summary: Preview extracted pages and blocks
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Extracted text and provenance
+  /api/projects/{project_id}/sources/{source_id}/reprocess:
+    post:
+      summary: Retry source processing
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Processing job created
+  /api/internal/sources/{source_id}/process:
+    post:
+      summary: Internal worker processing callback
+      responses:
+        '200':
+          description: Source processed
+  /api/projects/{project_id}/rag/search:
+    post:
+      summary: Hybrid retrieval over the project sources
+      description: >-
+        Returns the retrieved passages with their full provenance. No language-model
+        generation happens in this endpoint.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string, minLength: 2, maxLength: 2000 }
+                top_k: { type: integer, minimum: 1, maximum: 200 }
+                strategy: { type: string, enum: [semantic, lexical, hybrid] }
+                fusion_method: { type: string, enum: [rrf, normalized] }
+                filters: { type: object }
+      responses:
+        '200':
+          description: Ranked passages with provenance
+  /api/projects/{project_id}/rag/documents:
+    get:
+      summary: Index state of every project source
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Index documents
+  /api/projects/{project_id}/rag/stats:
+    get:
+      summary: Index statistics and embedding cost
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Index statistics
+  /api/projects/{project_id}/rag/queries:
+    get:
+      summary: Technical search history
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Search history
+  /api/projects/{project_id}/rag/sources/{source_id}/index:
+    post:
+      summary: Index a processed source
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Indexing started or completed
+  /api/projects/{project_id}/rag/sources/{source_id}/reindex:
+    post:
+      summary: Force a reindex of one source
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Reindexing started or completed
+  /api/projects/{project_id}/rag/sources/{source_id}/deindex:
+    post:
+      summary: Remove a source from the index without deleting it
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Deindexed
+  /api/projects/{project_id}/rag/reindex:
+    post:
+      summary: Reindex every processed source of the project
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Reindexing summary
+  /api/internal/rag/sources/{source_id}/index:
+    post:
+      summary: Internal worker indexing callback
+      responses:
+        '200':
+          description: Index document
+  /api/internal/rag/sources/{source_id}/deindex:
+    post:
+      summary: Internal worker deindexing callback
+      responses:
+        '200':
+          description: Index document
+  /api/projects/{project_id}/assistant/ask:
+    post:
+      summary: Ask a question grounded in the project sources
+      description: >-
+        The answer is generated from the passages retrieved by the RAG engine. Every citation
+        is verified server-side against the passages actually sent to the model. When nothing
+        is retrieved the response is insufficient_sources and the model is never called.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 2 }
+                conversation_id: { type: string, format: uuid, nullable: true }
+      responses:
+        '200':
+          description: Grounded answer with validated citations
+        '429':
+          description: Rate limit or daily token budget reached
+  /api/projects/{project_id}/assistant/conversations:
+    get:
+      summary: List the current user's conversations
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Conversation list
+    post:
+      summary: Create a conversation
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '201':
+          description: Conversation created
+  /api/projects/{project_id}/assistant/conversations/{conversation_id}:
+    get:
+      summary: Read a conversation with its citations
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Conversation detail
+        '404':
+          description: Unknown conversation, or one owned by another user
+    delete:
+      summary: Delete a conversation
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Conversation deleted
+  /api/projects/{project_id}/assistant/conversations/{conversation_id}/messages:
+    post:
+      summary: Continue an existing conversation
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Grounded answer
+  /api/projects/{project_id}/assistant/usage:
+    get:
+      summary: Token consumption for the current user
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Usage counters
+  /api/projects/{project_id}/assistant/config:
+    get:
+      summary: Effective assistant configuration
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Configuration without any secret
+  /api/projects/{project_id}/writing/actions:
+    get:
+      summary: Catalogue of the available writing actions
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Writing action catalogue
+  /api/projects/{project_id}/writing/generate:
+    post:
+      summary: Produce a writing proposal from a Tiptap selection
+      description: >-
+        Returns a proposal. This endpoint never modifies the thesis: applying a proposal is an
+        explicit editor action performed through the section save route. Source-backed actions
+        retrieve passages with the RAG engine and their citations are verified server-side.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string }
+                instruction: { type: string, maxLength: 1000 }
+                selection: { type: string }
+                section_text: { type: string }
+                previous_text: { type: string }
+                section_id: { type: string, format: uuid, nullable: true }
+      responses:
+        '200':
+          description: Writing proposal with validated citations
+        '429':
+          description: Rate limit reached
+  /api/projects/{project_id}/writing/generations:
+    get:
+      summary: Writing generation history
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Generation history
+  /api/projects/{project_id}/writing/generations/{generation_id}/discard:
+    post:
+      summary: Discard a proposal
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Generation marked as discarded
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ama_session
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token

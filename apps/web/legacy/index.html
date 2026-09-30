@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#152b45" />
+    <meta
+      name="description"
+      content="ThesisFlow, votre espace de rédaction pour structurer et finaliser votre mémoire."
+    />
+    <title>ThesisFlow — Mon espace mémoire</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigation principale">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="brand-name">thesis<span>flow</span></div>
+        </div>
+
+        <div class="sidebar-section-label">Espace de travail</div>
+        <nav class="primary-nav" id="primary-nav">
+          <button class="nav-item active" type="button" data-view="dashboard">
+            <span class="nav-icon" data-icon="grid"></span>
+            <span>Tableau de bord</span>
+          </button>
+          <button class="nav-item" type="button" data-view="editor" id="nav-project">
+            <span class="nav-icon" data-icon="book-open"></span>
+            <span>Mon mémoire</span>
+            <span class="nav-dot" aria-hidden="true"></span>
+          </button>
+          <button class="nav-item" type="button" data-view="bibliography">
+            <span class="nav-icon" data-icon="library"></span>
+            <span>Bibliographie</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-section-label sidebar-section-label--spaced">Outils</div>
+        <nav class="primary-nav">
+          <button class="nav-item" type="button" data-view="settings">
+            <span class="nav-icon" data-icon="settings"></span>
+            <span>Réglages</span>
+          </button>
+          <button class="nav-item" type="button" data-action="show-help">
+            <span class="nav-icon" data-icon="help-circle"></span>
+            <span>Guide de rédaction</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-tip">
+            <div class="tip-icon"><span data-icon="lightbulb"></span></div>
+            <div>
+              <strong>Petit conseil</strong>
+              <p>Écrivez 30 minutes chaque jour. La régularité fait la différence.</p>
+            </div>
+          </div>
+          <div class="profile-card">
+            <div class="avatar">CM</div>
+            <div class="profile-copy">
+              <strong id="sidebar-user-name">Camille Martin</strong>
+              <span>Étudiant·e</span>
+            </div>
+            <button class="icon-button icon-button--subtle" type="button" data-view="settings" aria-label="Ouvrir les réglages">
+              <span data-icon="more-horizontal"></span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content" id="main-content" tabindex="-1"></main>
+    </div>
+
+    <div id="modal-root"></div>
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

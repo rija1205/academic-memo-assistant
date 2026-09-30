@@ -1,0 +1,122 @@
+# Production overlay.
+#
+# Applied with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What this overlay changes, and why each change matters for a memoir application:
+#
+# * only the frontend publishes a port. The API, PostgreSQL and Redis become reachable only
+#   through the internal network, so a database port is never exposed to the internet;
+# * every service gets a resource ceiling, so one runaway export cannot starve the others;
+# * the filesystem is read-only except for the volume that legitimately needs to write;
+# * logs are capped, because an unbounded log file fills a disk and takes the backups with it;
+# * a health check gates the dependencies, so a start order is enforced rather than hoped for.
+#
+# The development compose file stays usable as it is: this file is an addition, not a rewrite.
+
+services:
+  frontend:
+    environment:
+      APP_ENV: production
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    # The standalone server is what a single node deployment needs. The path must match the
+    # image: the Dockerfile copies the standalone tree to /app and its own CMD starts
+    # "node apps/web/server.js" from there. A bare "server.js" does not exist in that image.
+    command: ["node", "apps/web/server.js"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Secure cookies require HTTPS at the edge. Set SECURE_COOKIES=true behind a proxy
+      # that terminates TLS, and keep FORCE_HTTPS true so HSTS is sent.
+      SECURE_COOKIES: "true"
+      FORCE_HTTPS: "true"
+      # The interactive documentation is disabled in production; the schema would hand out a
+      # map of the administrative surface.
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    environment:
+      APP_ENV: production
+    deploy:
+      resources:
+        limits:
+          # Extraction and indexing are the memory-hungry part of the application.
+          cpus: "2.0"
+          memory: 4G
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire en production}
+    ports: []
+    shm_size: "256mb"
+    command:
+      [
+        "postgres",
+        "-c",
+        "max_connections=200",
+        "-c",
+        "shared_buffers=512MB",
+        "-c",
+        "log_min_duration_statement=1000",
+      ]
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  redis:
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

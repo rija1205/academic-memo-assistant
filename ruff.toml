@@ -1,0 +1,18 @@
+# Ruff configuration for the repository root.
+#
+# `services/api` has its own configuration in its pyproject.toml, which takes precedence for
+# the files it covers. This file exists for `scripts/`, which sits outside that package.
+#
+# Without it, ruff infers whether `app` is first-party from the current working directory:
+# the deferred imports in `scripts/bootstrap_admin.py` were therefore reported as
+# mis-sorted when checked from `services/api` and as correct when checked from the root. A
+# check whose result depends on where it is run from is not a check.
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP"]
+
+[lint.isort]
+# The scripts import the API's own package, which is not installed and not relative to them.
+known-first-party = ["app"]

@@ -1,0 +1,177 @@
+name: academic-memo-assistant
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_AUTH_API_URL: /api/backend
+        NEXT_PUBLIC_SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ama_session}
+        NEXT_PUBLIC_CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-ama_csrf}
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Academic Memo Assistant}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_AUTH_API_URL: /api/backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-replace-this-development-secret}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ama_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-ama_csrf}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      AUTH_EXPOSE_RESET_TOKEN: ${AUTH_EXPOSE_RESET_TOKEN:-false}
+      AUTH_RATE_LIMIT_ENABLED: ${AUTH_RATE_LIMIT_ENABLED:-true}
+      AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:-10}
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-900}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/backend/auth/google/callback}
+      GOOGLE_OAUTH_SCOPES: ${GOOGLE_OAUTH_SCOPES:-openid email profile}
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-academic_memo}:${POSTGRES_PASSWORD:-academic_memo_dev}@postgres:5432/${POSTGRES_DB:-academic_memo}"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SOURCE_PROCESSING_MODE: ${SOURCE_PROCESSING_MODE:-async}
+      SOURCE_STORAGE_PROVIDER: ${SOURCE_STORAGE_PROVIDER:-local}
+      SOURCE_LOCAL_STORAGE_PATH: ${SOURCE_LOCAL_STORAGE_PATH:-/var/lib/academic-memo/sources}
+      SOURCE_MAX_UPLOAD_BYTES: ${SOURCE_MAX_UPLOAD_BYTES:-52428800}
+      SOURCE_WORKER_TOKEN: ${SOURCE_WORKER_TOKEN:-local-worker-token}
+      SOURCE_OCR_PROVIDER: ${SOURCE_OCR_PROVIDER:-none}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-academic-memo}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      # Stage 11 - exports PDF / DOCX
+      EXPORT_MAX_OUTPUT_BYTES: ${EXPORT_MAX_OUTPUT_BYTES:-209715200}
+      EXPORT_TIMEOUT_SECONDS: ${EXPORT_TIMEOUT_SECONDS:-300}
+      EXPORT_ALLOW_REMOTE_IMAGES: ${EXPORT_ALLOW_REMOTE_IMAGES:-false}
+      # Stage 12 - audit and RAG
+      AUDIT_RATE_LIMIT_MAX_CALLS: ${AUDIT_RATE_LIMIT_MAX_CALLS:-30}
+      # Stage 13 - request budgets and security headers
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_FAIL_CLOSED: ${RATE_LIMIT_FAIL_CLOSED:-true}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      EXPORT_RATE_LIMIT_MAX_CALLS: ${EXPORT_RATE_LIMIT_MAX_CALLS:-20}
+      RAG_RATE_LIMIT_MAX_CALLS: ${RAG_RATE_LIMIT_MAX_CALLS:-60}
+      ASSISTANT_RATE_LIMIT_MAX_CALLS: ${ASSISTANT_RATE_LIMIT_MAX_CALLS:-30}
+      WRITING_RATE_LIMIT_MAX_CALLS: ${WRITING_RATE_LIMIT_MAX_CALLS:-30}
+      IMPORT_RATE_LIMIT_MAX_CALLS: ${IMPORT_RATE_LIMIT_MAX_CALLS:-20}
+      WRITE_RATE_LIMIT_MAX_CALLS: ${WRITE_RATE_LIMIT_MAX_CALLS:-180}
+      FORCE_HTTPS: ${FORCE_HTTPS:-false}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-31536000}
+      # Stage 7/8 - assistant and writing assistant
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-mock}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      ASSISTANT_RATE_LIMIT_MAX_ASSISTANT: ${ASSISTANT_MAX_TOKENS_PER_CALL:-8000}
+    ports:
+      - "8000:8000"
+    volumes:
+      - source_data:/var/lib/academic-memo/sources
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=3)"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/worker.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SOURCE_WORKER_URL: http://backend:8000
+      SOURCE_WORKER_TOKEN: ${SOURCE_WORKER_TOKEN:-local-worker-token}
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      [
+        "celery",
+        "-A",
+        "app.worker.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--queues=sources,rag,celery",
+      ]
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-academic_memo}
+      POSTGRES_USER: ${POSTGRES_USER:-academic_memo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academic_memo_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  source_data:
